@@ -1,0 +1,51 @@
+tiers:
+  tier1:
+    - grade_high_vs_low
+    - grade_3class
+    - er_status
+    - stage_early_vs_late
+  tier2:
+    - stage_4class
+    - vital_status
+    - cause_specific_outcome
+  tier3:
+    - chemo_received
+    - radio_received
+    - surgery_received
+    - screen_detected
+    - pr_status
+    - her2_status
+
+modalities:
+  core:
+    - bridges_truncating
+    - bridges_missense
+    - bridges_genotypes
+  arrays:
+    - icogs
+    - oncoarray
+
+array_tasks:
+  - grade_high_vs_low
+  - grade_3class
+  - er_status
+  - stage_early_vs_late
+  - vital_status
+
+model_sets:
+  low_dim:
+    - logistic_l2
+    - logistic_elasticnet
+    - random_forest
+    - lightgbm
+  high_dim:
+    - logistic_l2
+    - logistic_elasticnet
+    - lightgbm
+
+resource_classes:
+  bridges_truncating: light
+  bridges_missense: medium
+  bridges_genotypes: heavy
+  icogs: heavy
+  oncoarray: heavy

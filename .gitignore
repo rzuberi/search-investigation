@@ -1,5 +1,7 @@
 # Raw dataset copy
 SEARCH/
+outputs/
+.claude_resources.json
 
 # Genomics / clinical data files
 *.bed
@@ -30,6 +32,7 @@ venv/
 __pycache__/
 .pytest_cache/
 .mypy_cache/
+*.pyc
 
 # OS/editor noise
 .DS_Store

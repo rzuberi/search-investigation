@@ -1,0 +1,66 @@
+tasks:
+  grade_high_vs_low:
+    cohort: breast
+    kind: binary
+    transform: grade_high_vs_low
+    description: "Grade 3 versus grade 1 or 2."
+  grade_3class:
+    cohort: breast
+    kind: multiclass
+    transform: grade_3class
+    description: "Grade 1 versus 2 versus 3."
+  er_status:
+    cohort: breast
+    kind: binary
+    transform: er_status
+    description: "ER positive versus ER negative."
+  stage_early_vs_late:
+    cohort: breast
+    kind: binary
+    transform: stage_early_vs_late
+    description: "Stage 1 or 2 versus stage 3 or 4."
+  stage_4class:
+    cohort: breast
+    kind: multiclass
+    transform: stage_4class
+    description: "Stage 1 versus 2 versus 3 versus 4."
+  vital_status:
+    cohort: breast
+    kind: binary
+    transform: vital_status
+    description: "Alive versus dead."
+  cause_specific_outcome:
+    cohort: breast
+    kind: multiclass
+    transform: cause_specific_outcome
+    description: "Alive versus cancer death versus other death."
+  chemo_received:
+    cohort: breast
+    kind: binary
+    transform: chemo_received
+    description: "Chemotherapy yes versus no."
+  radio_received:
+    cohort: breast
+    kind: binary
+    transform: radio_received
+    description: "Radiotherapy yes versus no."
+  surgery_received:
+    cohort: breast
+    kind: binary
+    transform: surgery_received
+    description: "Surgery yes versus no."
+  screen_detected:
+    cohort: breast
+    kind: binary
+    transform: screen_detected
+    description: "Screen-detected versus not screen-detected."
+  pr_status:
+    cohort: breast
+    kind: binary
+    transform: pr_status
+    description: "PR positive versus PR negative."
+  her2_status:
+    cohort: breast
+    kind: binary
+    transform: her2_status
+    description: "HER2 positive versus HER2 negative."

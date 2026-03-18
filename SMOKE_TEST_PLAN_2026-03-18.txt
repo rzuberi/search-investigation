@@ -1,0 +1,342 @@
+SEARCH investigation smoke-test plan
+Date: 2026-03-18
+Repo root: /mnt/scratchc/fmlab/zuberi01/phd/search-investigation
+
+Goal
+Run a fast but comprehensive first-pass benchmark across the realistic breast-cancer prediction tasks that can be supported by the local SEARCH molecular data already copied into this repo area. The output of this phase is not a paper-ready model. It is a triage pass to identify which task x modality combinations are worth scaling up.
+
+Constraints
+- Do not commit any raw or patient-level data to git.
+- Work from the copied local data in SEARCH/.
+- Prefer scratchc-compatible compute because the project lives on /mnt/scratchc.
+- Optimize for throughput and comparability, not maximal model performance.
+- Use CPU-first smoke tests unless a specific model clearly benefits from GPU.
+
+Live cluster facts observed today
+- Current host: clust1-sub-1.cri.camres.org
+- Repo and copied data are on /mnt/scratchc
+- scratchc free space: about 106T
+- Partitions visible now: epyc, rocm, cuda, h200
+- epyc is default and has the largest current free CPU pool
+- No current jobs for user zuberi01
+
+Primary partition choice
+- Use epyc for the main smoke-test sweep.
+- Reason: these are tabular datasets and the first models should be logistic regression / linear baselines / tree ensembles, all of which are CPU-friendly and easy to parallelize over many jobs.
+- Keep rocm/cuda/h200 out of the first sweep unless later experiments add GPU-heavy models.
+
+Data modalities to use in smoke tests
+1. BRIDGES_truncating
+   - Shape: about 12,655 rows x 37 columns
+   - Best for interpretable gene-level binary mutation signals
+2. BRIDGES_missense
+   - Shape: about 12,655 rows x 422 columns
+   - Best for interpretable variant burden / annotation features
+3. BRIDGES_genotypes
+   - Shape: about 13,336 rows x 54,451 columns
+   - Main high-dimensional tabular modality for sequencing-derived genotypes
+4. iCOGS PLINK
+   - Shape: about 10,523 samples x 196,114 variants overall
+   - Breast patients with local data: about 9,013
+   - Use only after converting to analysis-ready matrices or SNP subsets
+5. OncoArray PLINK
+   - Shape: about 6,381 samples x 477,371 variants overall
+   - Breast patients with local data: about 4,157
+   - Use only after converting to analysis-ready matrices or SNP subsets
+
+Raw VCF policy for smoke tests
+- Do not use raw VCFs in the first smoke-test wave.
+- Reason: they need extra feature engineering and will slow down the sweep.
+- Instead, treat BRIDGES_genotypes, BRIDGES_missense, and BRIDGES_truncating as the sequence-derived feature sets for phase 1.
+
+Breast prediction tasks to include
+Tier 1: highest value and most realistic
+1. grade_high_vs_low
+   - Label: grade 3 versus grade 1/2
+   - Why: good sample size, clinically meaningful, likely learnable
+2. grade_3class
+   - Label: grade 1 vs 2 vs 3
+   - Why: more ambitious extension of the same biology
+3. er_status
+   - Label: ER positive vs ER negative
+   - Why: biologically meaningful and reasonably well populated
+4. stage_early_vs_late
+   - Label: stage 1/2 vs stage 3/4
+   - Why: useful but more imbalanced than grade
+
+Tier 2: useful but secondary
+5. stage_4class
+   - Label: stage 1 vs 2 vs 3 vs 4
+6. vital_status
+   - Label: alive vs dead
+7. cause_specific_outcome
+   - Label: alive vs cancer death vs other death
+   - Note: keep exploratory because local data do not yet define full survival-time handling
+
+Tier 3: likely confounded or sparse, but cheap to test
+8. chemo_received
+9. radio_received
+10. surgery_received
+11. screen_detected
+12. pr_status
+13. her2_status
+
+Tasks to exclude from the first sweep
+- treatment response
+- progression / recurrence
+- time-to-event survival modeling
+- stage4-only binary as a headline result
+- raw VCF-based custom engineering
+
+Recommended modality x task matrix
+Run for all Tier 1 tasks:
+- BRIDGES_truncating
+- BRIDGES_missense
+- BRIDGES_genotypes
+
+Run for selected Tier 1 and Tier 2 tasks:
+- iCOGS: grade_high_vs_low, grade_3class, er_status, stage_early_vs_late, vital_status
+- OncoArray: same as iCOGS
+
+Only run Tier 3 tasks on:
+- BRIDGES_truncating
+- BRIDGES_missense
+- BRIDGES_genotypes
+
+Rationale:
+- BRIDGES tables are already analysis-ready and cover the most breast patients.
+- iCOGS and OncoArray are important comparators but require more preprocessing, so they should not dominate the first pass.
+
+Model families for smoke tests
+Use simple, fast baselines first.
+
+For low-dimensional BRIDGES_truncating and BRIDGES_missense:
+- logistic regression with class weighting
+- elastic-net logistic regression
+- random forest
+- xgboost or lightgbm if available locally
+
+For BRIDGES_genotypes:
+- l2 logistic regression
+- linear SVM or SGD classifier
+- elastic-net logistic regression after variance filtering
+- lightgbm only if feature count is reduced first
+
+For iCOGS / OncoArray:
+- plink-based pruning or top-variance SNP filtering first
+- then l2 logistic regression
+- optionally elastic-net logistic regression
+
+Skip in the first pass
+- deep learning
+- GPU-specific models
+- complicated hyperparameter searches
+
+Preprocessing plan
+1. Build one breast-only patient index keyed by RZ_ID
+2. For each modality, build an analysis table with rows aligned to RZ_ID
+3. Drop patients with missing labels for the current task
+4. Remove non-informative columns
+5. Standardize continuous features where needed
+6. Impute simple missing values if necessary
+7. For high-dimensional matrices:
+   - variance filter
+   - optional univariate feature filter inside training folds only
+8. Record exact sample counts after filtering for every task x modality combination
+
+Evaluation design
+Use a lightweight but defensible protocol.
+
+Primary split
+- stratified train/validation/test
+- fixed random seeds
+- same patient split reused across models within each task x modality combination
+
+Preferred smoke-test protocol
+- 3 repeats of stratified 5-fold CV on training/validation only for model comparison
+- 1 held-out test split kept untouched until the end of each task x modality run
+
+Metrics
+Binary tasks:
+- AUROC
+- AUPRC
+- balanced accuracy
+- F1
+
+Multiclass tasks:
+- macro AUROC if implemented
+- macro F1
+- balanced accuracy
+- confusion matrix
+
+Calibration / interpretability
+- collect top coefficients for linear models
+- collect feature importance for tree models
+- do not over-interpret until stability is checked
+
+Parallelization strategy
+Unit of parallel work
+- one Slurm job per task x modality x model family
+
+Job grouping
+- Group A: BRIDGES_truncating jobs
+- Group B: BRIDGES_missense jobs
+- Group C: BRIDGES_genotypes jobs
+- Group D: iCOGS jobs
+- Group E: OncoArray jobs
+
+Why this grouping
+- It isolates write locations
+- It lets heavy matrices run independently from lighter jobs
+- It makes failed jobs easy to rerun selectively
+
+Expected first-wave job count
+- Tier 1 tasks: 4 tasks
+- Tier 2 tasks: 3 tasks
+- Tier 3 tasks: 6 tasks
+- Core modalities in first sweep: 3 BRIDGES tables
+- Comparator modalities: 2 array datasets for selected tasks
+- Models per combo: 2 to 4
+
+Suggested initial cap
+- Start with about 40 to 60 jobs total
+- Then expand only around the promising task x modality combinations
+
+Slurm resource plan
+Default light job
+- partition: epyc
+- cpus-per-task: 8
+- mem: 32G
+- time: 02:00:00
+
+Default medium job
+- partition: epyc
+- cpus-per-task: 16
+- mem: 64G
+- time: 04:00:00
+
+Default heavy job for BRIDGES_genotypes or array preprocessing
+- partition: epyc
+- cpus-per-task: 32
+- mem: 128G
+- time: 08:00:00
+
+Do not use GPU partitions initially
+- rocm/cuda/h200 should be reserved for later only if CPU baselines are saturated or a GPU-specific method is justified
+
+Directory plan inside repo
+- scripts/
+  - data_prep/
+  - models/
+  - slurm/
+- configs/
+  - tasks/
+  - models/
+- outputs/
+  - manifests/
+  - smoke_tests/
+  - logs/
+  - summaries/
+- notebooks/
+  - only for review and plotting, not for main pipeline
+- docs/
+  - notes and figures
+
+Git safety plan
+- Keep raw data under SEARCH/ only
+- Do not commit outputs with patient-level predictions
+- Commit only:
+  - code
+  - configs
+  - Slurm scripts
+  - aggregate tables
+  - plots that cannot be reverse-engineered to patient data
+  - run manifests and metrics summaries
+
+Manifest files to generate
+1. task_manifest.csv
+   - task name
+   - label definition
+   - class counts
+   - included patients
+2. modality_manifest.csv
+   - modality
+   - source path
+   - raw dimensions
+   - filtered dimensions
+3. run_manifest.csv
+   - job id
+   - task
+   - modality
+   - model
+   - seed
+   - split id
+4. summary_metrics.csv
+   - aggregate performance only
+
+What would count as success in the smoke-test phase
+- At least one task with consistent signal across multiple modalities
+- Performance above trivial baselines with stable variance across splits
+- At least one interpretable model whose top features make biological sense
+- A clear ranking of which tasks are worth deeper investment
+
+What would count as failure
+- Strong performance only on confounded treatment labels
+- Unstable performance across splits
+- High-dimensional modalities underperforming simple BRIDGES summaries
+- Label leakage discovered during patient alignment
+
+Decision rules after smoke tests
+Promote to full study if:
+- the task is clinically meaningful
+- the label size is adequate
+- performance is stable
+- the feature story is interpretable
+
+Likely promotion candidates
+- grade_high_vs_low
+- grade_3class
+- er_status
+
+Likely secondary analyses only
+- stage_early_vs_late
+- vital_status
+- cause_specific_outcome
+- treatment-received labels
+
+Execution order
+Phase 0
+- set up repo structure and scripts
+- build patient-indexed manifests
+- verify no data leaks into git
+
+Phase 1
+- run BRIDGES_truncating and BRIDGES_missense on Tier 1 tasks
+
+Phase 2
+- run BRIDGES_genotypes on Tier 1 tasks
+
+Phase 3
+- run iCOGS and OncoArray comparators on the best Tier 1 tasks
+
+Phase 4
+- run Tier 2 and Tier 3 tasks only if Phase 1 to 3 finish cleanly
+
+Phase 5
+- write aggregate report and choose one primary manuscript path
+
+Immediate next implementation tasks
+1. Create repo structure for scripts, configs, outputs, and docs
+2. Build a breast cohort manifest keyed by RZ_ID
+3. Build modality-specific filtered matrices
+4. Implement label extraction code for all chosen tasks
+5. Implement one common evaluation harness
+6. Write Slurm submission templates for light, medium, and heavy epyc jobs
+7. Launch a very small pilot:
+   - BRIDGES_truncating x grade_high_vs_low
+   - BRIDGES_missense x grade_high_vs_low
+   - BRIDGES_genotypes x grade_high_vs_low
+8. Confirm outputs, runtime, and memory before launching the full smoke-test sweep
+
+Bottom-line recommendation
+Use epyc, start CPU-only, skip raw VCFs for now, and make grade_high_vs_low the anchor task. Then expand to ER status and grade_3class, with BRIDGES_missense and BRIDGES_truncating as the first two modalities and BRIDGES_genotypes as the main higher-dimensional follow-up.
