@@ -1,0 +1,36 @@
+# Raw dataset copy
+SEARCH/
+
+# Genomics / clinical data files
+*.bed
+*.bim
+*.fam
+*.vcf
+*.vcf.gz
+*.bcf
+*.bcf.gz
+*.bam
+*.cram
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.xlsx
+*.xls
+*.csv
+*.csv.gz
+*.tsv
+*.tsv.gz
+*.zip
+*.gz
+
+# Local environments and caches
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
